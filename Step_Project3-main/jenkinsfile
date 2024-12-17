@@ -1,0 +1,58 @@
+pipeline {
+    agent { label 'worker' }
+
+    environment {
+        DOCKER_IMAGE = "step-project-2:latest"
+        M2_DIR = "/home/$USER/my-m2"
+        GRADLE_DIR = "/home/$USER/my-gradle"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://gitlab.com/lelyuks35/step-project-2.git'
+            }
+        }
+        stage('Prepare Directories') {
+            steps {
+                script {
+
+                    sh '''
+                        sudo rm -rf ${M2_DIR} ${GRADLE_DIR}
+                        sudo mkdir -p ${M2_DIR} ${GRADLE_DIR}
+                        sudo chown $USER:$USER ${M2_DIR} ${GRADLE_DIR}
+                    '''
+                }
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                dir('.devcontainer') {
+                    sh 'docker build -t ${DOCKER_IMAGE} .'
+                }
+            }
+        }
+        stage('Run Docker Container') {
+            steps {
+                sh 'docker run -d -p 8080:8080 ${DOCKER_IMAGE}'
+            }
+        }
+        stage('Test Application') {
+            steps {
+               sh '''
+                sleep 10
+                curl -f http://localhost:8080 || exit 1
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline выполнен успешно!'
+        }
+        failure {
+            echo 'Pipeline завершился с ошибками!'
+        }
+    }
+}
